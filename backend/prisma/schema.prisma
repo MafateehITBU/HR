@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,3 +10,292 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model GM {
+  id             Int      @id @default(autoincrement())
+  name           String
+  email          String   @unique
+  password_hash  String
+  phone          String?
+  profilePicture String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Department {
+  id               Int        @id @default(autoincrement())
+  name             String
+  departmentHeadID Int?
+  employees        Employee[]
+  jobTitles        JobTitle[]
+  teams            Team[]
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+}
+
+model Employee {
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  email              String              @unique
+  password_hash      String
+  phone              String?
+  dob                DateTime?
+  hireDate           DateTime
+  bankDetails        String?
+  depID              Int
+  department         Department          @relation(fields: [depID], references: [id])
+  jobTitleID         Int
+  jobTitle           JobTitle            @relation(fields: [jobTitleID], references: [id])
+  teamID             Int?
+  team               Team?               @relation(fields: [teamID], references: [id])
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  attendances        Attendance[]
+  leaveRequests      LeaveRequest[]
+  leaveBalances      LeaveBalance[]
+  payrolls           Payroll[]
+  payslips           Payslip[]
+  compensations      Compensation[]
+  bonuses            Bonus[]
+  performanceReviews PerformanceReview[] @relation("EmployeeReviews")
+  reviewedReviews    PerformanceReview[] @relation("ReviewerReviews")
+  policies           Policy[]
+  regulations        Regulation[]
+  Goal               Goal[]
+}
+
+model JobTitle {
+  id          Int          @id @default(autoincrement())
+  jobTitle    String
+  description String?
+  depID       Int
+  department  Department   @relation(fields: [depID], references: [id])
+  employees   Employee[]
+  jobPostings JobPosting[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Team {
+  id         Int        @id @default(autoincrement())
+  teamName   String
+  teamLead   Int?
+  depId      Int
+  department Department @relation(fields: [depId], references: [id])
+  employees  Employee[]
+  goals      Goal[]     @relation("TeamGoals")
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Applicant {
+  id                Int         @id @default(autoincrement())
+  name              String
+  email             String
+  phone             String?
+  resumeURL         String?
+  jobPostingId      Int
+  jobPosting        JobPosting  @relation(fields: [jobPostingId], references: [id])
+  coverLetter       String?
+  applicationDate   DateTime    @default(now())
+  applicationSource String?
+  status            String      @default("PENDING")
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  interviews        Interview[]
+}
+
+model JobPosting {
+  id              Int              @id @default(autoincrement())
+  jobTitleId      Int
+  jobTitle        JobTitle         @relation(fields: [jobTitleId], references: [id])
+  employmentType  String
+  salaryRange     String?
+  location        String?
+  jobRequirements String?
+  deadline        DateTime?
+  status          String           @default("ACTIVE")
+  applicants      Applicant[]
+  jobPostingTrack JobPostingTrack?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model JobPostingTrack {
+  id              Int        @id @default(autoincrement())
+  jobPostingId    Int        @unique
+  jobPosting      JobPosting @relation(fields: [jobPostingId], references: [id])
+  applicantsCount Int
+  interviews      Int
+  hiringStatus    String
+}
+
+model Interview {
+  id               Int         @id @default(autoincrement())
+  candidateId      Int
+  candidate        Applicant   @relation(fields: [candidateId], references: [id])
+  interviewersIds  Int[]
+  interviewDate    DateTime
+  location         String?
+  status           String
+  feedback         String?
+  candidateDetails Candidate[]
+}
+
+model Candidate {
+  id               Int       @id @default(autoincrement())
+  name             String
+  email            String    @unique
+  phone            String
+  educationHistory String?
+  skills           String[]
+  certificates     String[]
+  resume           String?
+  interviewRecords String?
+  interviewId      Int
+  interview        Interview @relation(fields: [interviewId], references: [id])
+  status           String
+}
+
+model Attendance {
+  id                 Int       @id @default(autoincrement())
+  empId              Int
+  employee           Employee  @relation(fields: [empId], references: [id])
+  approvingManagerId Int
+  clockInTime        DateTime
+  clockOutTime       DateTime?
+  workHours          Float?
+  overtimeHours      Float?
+  location           String?
+  clockInMethod      String?
+}
+
+model LeaveRequest {
+  id          Int      @id @default(autoincrement())
+  empId       Int
+  employee    Employee @relation(fields: [empId], references: [id])
+  leaveType   String
+  startDate   DateTime
+  endDate     DateTime
+  leaveReason String?
+  status      String
+}
+
+model LeaveBalance {
+  id          Int      @id @default(autoincrement())
+  empId       Int
+  employee    Employee @relation(fields: [empId], references: [id])
+  entitlement Int
+  leaveTaken  Int      @default(0)
+  accrualRate Float
+}
+
+model Payroll {
+  id         Int       @id @default(autoincrement())
+  empId      Int
+  employee   Employee  @relation(fields: [empId], references: [id])
+  baseSalary Float
+  deductions Float     @default(0)
+  payPeriod  String
+  bonus      Float     @default(0)
+  payslips   Payslip[]
+}
+
+model Payslip {
+  id         Int      @id @default(autoincrement())
+  empId      Int
+  employee   Employee @relation(fields: [empId], references: [id])
+  dateIssued DateTime
+  payrollId  Int
+  payroll    Payroll  @relation(fields: [payrollId], references: [id])
+}
+
+model Compensation {
+  id                  Int      @id @default(autoincrement())
+  empId               Int
+  employee            Employee @relation(fields: [empId], references: [id])
+  baseSalary          Float
+  effectiveDate       DateTime
+  compensationHistory String[]
+  benefits            String[]
+}
+
+model Bonus {
+  id               Int      @id @default(autoincrement())
+  empId            Int
+  employee         Employee @relation(fields: [empId], references: [id])
+  bonusAmount      Float
+  commissionAmount Float    @default(0)
+  incentiveType    String
+  incentivePeriod  String
+  incentiveReason  String?
+}
+
+model Goal {
+  id             Int      @id @default(autoincrement())
+  title          String
+  description    String?
+  type           String
+  assignedTo     Int
+  assignedToType String
+  startDate      DateTime
+  endDate        DateTime
+  priority       String
+
+  goalTracks GoalTrack[]
+
+  // Two optional relations using same field
+  team     Team?     @relation("TeamGoals", fields: [assignedTo], references: [id], map: "Goal_assignedTo_team_fkey")
+  employee Employee? @relation(fields: [assignedTo], references: [id], map: "Goal_assignedTo_employee_fkey")
+}
+
+model GoalTrack {
+  id              Int      @id @default(autoincrement())
+  goalId          Int
+  goal            Goal     @relation(fields: [goalId], references: [id])
+  progressUpdates String[]
+  milestones      String[]
+  challaenges     String[]
+  comments        String[]
+}
+
+model PerformanceReview {
+  id           Int      @id @default(autoincrement())
+  employeeId   Int
+  reviewerId   Int
+  reviewDate   DateTime
+  score        Int
+  comments     String[]
+  reviewPeriod String
+  reviewStatus String
+  employee     Employee @relation("EmployeeReviews", fields: [employeeId], references: [id])
+  reviewer     Employee @relation("ReviewerReviews", fields: [reviewerId], references: [id])
+}
+
+model Policy {
+  id            Int      @id @default(autoincrement())
+  title         String
+  description   String?
+  document      String
+  effectiveDate DateTime
+  authorId      Int
+  author        Employee @relation(fields: [authorId], references: [id])
+}
+
+model Regulation {
+  id                 Int      @id @default(autoincrement())
+  title              String
+  description        String?
+  status             String
+  regulationDate     DateTime
+  responsiblePartyId Int
+  responsibleParty   Employee @relation(fields: [responsiblePartyId], references: [id])
+}
+
+model Audit {
+  id               Int      @id @default(autoincrement())
+  type             String
+  date             DateTime
+  findings         String[]
+  correctiveAction String?
+  status           String
+}

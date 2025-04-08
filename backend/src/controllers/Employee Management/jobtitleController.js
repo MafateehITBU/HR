@@ -26,6 +26,7 @@ export const createJobTitle = [
         .json({ message: "Job title created successfully", jobTitle });
     } catch (error) {
       res.status(400).json({ message: "Invalid request" });
+      console.log(error);
     }
   },
 ];

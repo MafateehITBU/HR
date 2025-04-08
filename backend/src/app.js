@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
-import prisma from "./config/prisma.js";
 import errorHandler from "./middleware/errorHandler.js";
+import employeeRoutes from "./routes/employeeRoutes.js";
+// ... other imports
 
 const app = express();
 
@@ -10,12 +11,10 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.use("/api/employees", employeeRoutes);
+// ... other routes
 
-// Error handling middleware
+// Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-}); 
+export default app;

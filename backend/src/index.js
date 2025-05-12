@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
 import errorHandler from "./middleware/errorHandler.js";
@@ -6,9 +9,14 @@ import departmentRoutes from "./routes/Employee Management/departmentRoutes.js";
 import teamRoutes from "./routes/Employee Management/teamRoutes.js";
 import jobtitleRoutes from "./routes/Employee Management/jobtitleRoutes.js";
 import employeeRoutes from "./routes/Employee Management/employeeRoutes.js";
-import jobPostingRoutes from './routes/Recruitment/jobPostingRoutes.js';
-import applicantRoutes from './routes/Recruitment/applicantRoutes.js';
-
+import jobPostingRoutes from "./routes/Recruitment/jobPostingRoutes.js";
+import applicantRoutes from "./routes/Recruitment/applicantRoutes.js";
+import goalRoutes from "./routes/performance-goals/goalRoutes.js";
+import goaltrackRoutes from "./routes/performance-goals/goaltrackRoutes.js";
+import performanceReviewRoutes from "./routes/performance-goals/performanceReviewRoutes.js";
+import policyRoutes from "./routes/governance/policyRoutes.js";
+import regulationRoutes from "./routes/governance/regulationRoutes.js";
+import auditRoutes from "./routes/governance/auditRoutes.js";
 
 const app = express();
 
@@ -24,8 +32,19 @@ app.use("/api/jobtitles", jobtitleRoutes);
 app.use("/api/employees", employeeRoutes);
 
 //job posting routes
-app.use('/api/job-postings', jobPostingRoutes);
-app.use('/api/applicants', applicantRoutes);
+app.use("/api/job-postings", jobPostingRoutes);
+app.use("/api/applicants", applicantRoutes);
+
+//performance & goals routes
+app.use("/api/goals", goalRoutes);
+app.use("/api/goaltracks", goaltrackRoutes);
+app.use("/api/performanceReviews", performanceReviewRoutes);
+
+//governance routes
+app.use("/api/policies", policyRoutes);
+app.use("/api/regulations", regulationRoutes);
+app.use("/api/audits", auditRoutes);
+
 // Error handling middleware
 app.use(errorHandler);
 

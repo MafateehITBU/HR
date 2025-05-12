@@ -7,10 +7,11 @@ import {
   updateGM,
   deleteGM,
 } from "../../controllers/Employee Management/gmController.js";
+import upload from "../../middleware/photoUpload.js";
 
 const router = express.Router();
 
-router.post("/register", registerGM);
+router.post("/register", upload.single("profilePic"), registerGM);
 router.post("/signin", SigninGM);
 router.get("/", getAllGMs);
 router.get("/:id", getGMById);

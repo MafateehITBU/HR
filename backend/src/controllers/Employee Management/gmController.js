@@ -1,93 +1,73 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import cloudinary from "cloudinary";
-import multer from "multer";
+import { uploadToCloudinary } from "../../utils/cloudinary.js";
 import fs from "fs";
-import path from "path";
 import prisma from "../../config/prisma.js";
 import helpers from "../../utils/helpers.js";
 
-// Cloudinary configuration
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-// Multer setup for file storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "./uploads/"); // Temporary upload folder
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // Unique filename
-  },
-});
-
-const upload = multer({ storage: storage });
-
 // Register a new GM
-export const registerGM = [
-  upload.single("profilePic"),
-  async (req, res) => {
-    try {
-      const { name, email, password, phone } = req.body;
-      // Validate required fields
-      if (!name || !email || !password) {
-        return res.status(400).json({ message: "All fields are required" });
-      }
-      // Validate email format
-      if (!helpers.validateEmail(email)) {
-        return res.status(400).json({ message: "Invalid email format" });
-      }
-      // Validate phone format
-      if (!helpers.validatePhone(phone)) {
-        return res.status(400).json({ message: "Invalid phone format" });
-      }
-      // Validate password format
-      if (!helpers.validatePassword(password)) {
-        return res.status(400).json({ message: "Invalid password format" });
-      }
+export const registerGM = async (req, res) => {
+  try {
+    const { name, email, password, phone } = req.body;
+    // Validate required fields
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+    // Validate email format
+    if (!helpers.validateEmail(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+    // Validate phone format
+    if (!helpers.validatePhone(phone)) {
+      return res.status(400).json({ message: "Invalid phone format" });
+    }
+    // Validate password format
+    if (!helpers.validatePassword(password)) {
+      return res.status(400).json({ message: "Invalid password format" });
+    }
 
-      const lowercaseEmail = email.toLowerCase();
+    const lowercaseEmail = email.toLowerCase();
 
-      // Check if a file is uploaded
-      let profilePictureUrl = null;
-      if (req.file) {
-        // Upload the file to Cloudinary
-        const result = await cloudinary.v2.uploader.upload(req.file.path);
-        profilePictureUrl = result.secure_url;
-
+    // Check if a file is uploaded
+    let profilePictureUrl = "";
+    if (req.file) {
+      try {
+        profilePictureUrl = await uploadToCloudinary(req.file.path);
         // Delete the local file after uploading
         fs.unlinkSync(req.file.path);
+      } catch (error) {
+        return res
+          .status(500)
+          .json({ message: "Failed to upload profile picture" });
       }
-      // Check if the email already exists
-      const existingGM = await prisma.gM.findUnique({
-        where: { email: lowercaseEmail },
-      });
-      if (existingGM) {
-        return res.status(400).json({ message: "Email already exists" });
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      const gm = await prisma.gM.create({
-        data: {
-          name,
-          email,
-          password_hash: hashedPassword,
-          phone,
-          profilePicture: profilePictureUrl,
-        },
-      });
-
-      res.status(201).json({ message: "GM added successfully", gm });
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
-      console.log(error);
     }
-  },
-];
+
+    // Check if the email already exists
+    const existingGM = await prisma.gM.findUnique({
+      where: { email: lowercaseEmail },
+    });
+    if (existingGM) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const gm = await prisma.gM.create({
+      data: {
+        name,
+        email: lowercaseEmail,
+        password_hash: hashedPassword,
+        phone,
+        profilePicture: profilePictureUrl, // This will be an empty string if no picture was uploaded
+      },
+    });
+
+    res.status(201).json({ message: "GM added successfully", gm });
+  } catch (error) {
+    res.status(400).json({ message: "Invalid request" });
+    console.log(error);
+  }
+};
 
 // Sign in a GM
 export const SigninGM = [

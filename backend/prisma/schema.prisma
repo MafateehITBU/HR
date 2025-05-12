@@ -10,6 +10,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ClockInMethod {
+  FINGERPRINT
+  FACE_RECOGNITION
+  MANUAL
+  RFID
+  MOBILEAPP
+}
+
+enum AuditType {
+  REGULATION
+  POLICY
+}
+
+enum AuditStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 model GM {
   id             Int      @id @default(autoincrement())
   name           String
@@ -42,6 +61,7 @@ model Employee {
   dob                DateTime?
   hireDate           DateTime
   bankDetails        String?
+  profilePicture     String?
   depID              Int
   department         Department          @relation(fields: [depID], references: [id])
   jobTitleID         Int
@@ -51,7 +71,6 @@ model Employee {
   leadingTeam        Team?               @relation("TeamLead")
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
-  attendances        Attendance[]
   leaveRequests      LeaveRequest[]
   leaveBalances      LeaveBalance[]
   payrolls           Payroll[]
@@ -63,6 +82,7 @@ model Employee {
   policies           Policy[]
   regulations        Regulation[]
   Goal               Goal[]
+  Attendance         Attendance[]
 }
 
 model JobTitle {
@@ -161,16 +181,15 @@ model Candidate {
 }
 
 model Attendance {
-  id                 Int       @id @default(autoincrement())
-  empId              Int
-  employee           Employee  @relation(fields: [empId], references: [id])
-  approvingManagerId Int
-  clockInTime        DateTime
-  clockOutTime       DateTime?
-  workHours          Float?
-  overtimeHours      Float?
-  location           String?
-  clockInMethod      String?
+  id            Int            @id @default(autoincrement())
+  empId         Int
+  employee      Employee       @relation(fields: [empId], references: [id])
+  clockInTime   DateTime
+  clockOutTime  DateTime?
+  workHours     Float?
+  overtimeHours Float?
+  location      String?
+  clockInMethod ClockInMethod?
 }
 
 model LeaveRequest {
@@ -235,21 +254,20 @@ model Bonus {
 }
 
 model Goal {
-  id             Int      @id @default(autoincrement())
-  title          String
-  description    String?
-  type           String
-  assignedTo     Int
-  assignedToType String
-  startDate      DateTime
-  endDate        DateTime
-  priority       String
+  id                   Int      @id @default(autoincrement())
+  title                String
+  description          String?
+  startDate            DateTime
+  endDate              DateTime
+  priority             String
+  assignedToType       String
+  assignedToTeamId     Int?
+  assignedToEmployeeId Int?
 
   goalTracks GoalTrack[]
 
-  // Two optional relations using same field
-  team     Team?     @relation("TeamGoals", fields: [assignedTo], references: [id], map: "Goal_assignedTo_team_fkey")
-  employee Employee? @relation(fields: [assignedTo], references: [id], map: "Goal_assignedTo_employee_fkey")
+  team     Team?     @relation("TeamGoals", fields: [assignedToTeamId], references: [id])
+  employee Employee? @relation(fields: [assignedToEmployeeId], references: [id])
 }
 
 model GoalTrack {
@@ -258,7 +276,7 @@ model GoalTrack {
   goal            Goal     @relation(fields: [goalId], references: [id])
   progressUpdates String[]
   milestones      String[]
-  challaenges     String[]
+  challenges      String[]
   comments        String[]
 }
 
@@ -283,6 +301,7 @@ model Policy {
   effectiveDate DateTime
   authorId      Int
   author        Employee @relation(fields: [authorId], references: [id])
+  audits        Audit[]
 }
 
 model Regulation {
@@ -293,13 +312,18 @@ model Regulation {
   regulationDate     DateTime
   responsiblePartyId Int
   responsibleParty   Employee @relation(fields: [responsiblePartyId], references: [id])
+  audits             Audit[]
 }
 
 model Audit {
-  id               Int      @id @default(autoincrement())
-  type             String
+  id               Int          @id @default(autoincrement())
+  type             AuditType?
+  policyId         Int?
+  policy           Policy?      @relation(fields: [policyId], references: [id])
+  regulationId     Int?
+  regulation       Regulation?  @relation(fields: [regulationId], references: [id])
   date             DateTime
   findings         String[]
   correctiveAction String?
-  status           String
+  status           AuditStatus?
 }

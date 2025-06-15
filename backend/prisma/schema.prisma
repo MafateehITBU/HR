@@ -29,6 +29,48 @@ enum AuditStatus {
   FAILED
 }
 
+enum Shifts {
+  A
+  B
+  C
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  LEAVE
+  PAID_BY_EMPLOYEE
+}
+
+enum LeaveRequestStatus {
+  APPROVED
+  REJECTED
+  UNDER_CONSIDERATION
+}
+
+enum PayPeriod {
+  MONTHLY
+  WEEKLY
+}
+
+enum IncentiveType {
+  PERFORMANCE_BONUS
+  SALES_COMMISSION
+  REFERRAL
+}
+
+enum IncentivePeriod {
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+enum CompensationBenefit {
+  HEALTH_INSURANCE
+  RETIREMENT_CONTRIBUTIONS
+  TRANSPORTATION
+}
+
 model GM {
   id             Int      @id @default(autoincrement())
   name           String
@@ -52,26 +94,73 @@ model Department {
   updatedAt        DateTime   @updatedAt
 }
 
-model Employee {
-  id                 Int                 @id @default(autoincrement())
+model CompanyShift {
+  id             Int          @id @default(autoincrement())
+  shift          Shifts
+  startTime      String
+  endTime        String
+  companyRulesId Int
+  companyRules   CompanyRules @relation(fields: [companyRulesId], references: [id], onDelete: Cascade)
+
+  @@unique([shift, companyRulesId]) // A company can only define each shift once
+}
+
+model Company {
+  id                 Int           @id @default(autoincrement())
   name               String
-  email              String              @unique
+  email              String        @unique
+  password_hash      String
+  phone              String
+  profilePicture     String?
+  subscriptionDate   DateTime?
+  subscriptionType   String?
+  subscriptionStatus String?
+  description        String?
+  companyRulesId     Int?          @unique
+  companyRules       CompanyRules? @relation(fields: [companyRulesId], references: [id])
+  createdAt          DateTime      @default(now())
+  employees          Employee[]
+}
+
+model CompanyRules {
+  id               Int            @id @default(autoincrement())
+  sickLeaveDays    Int
+  annualLeaveDays  Int
+  leavesDays       Int
+  maxCarryOverDays Float
+  createdAt        DateTime       @default(now())
+  company          Company?
+  shifts           CompanyShift[]
+}
+
+model Employee {
+  id                 Int        @id @default(autoincrement())
+  name               String
+  email              String     @unique
   password_hash      String
   phone              String?
   dob                DateTime?
   hireDate           DateTime
   bankDetails        String?
   profilePicture     String?
+  weeklyWorkingHours Int        @default(50)
+  shift              Shifts?
+  companyID          Int
+  company            Company    @relation(fields: [companyID], references: [id], onDelete: Cascade)
   depID              Int
-  department         Department          @relation(fields: [depID], references: [id])
+  department         Department @relation(fields: [depID], references: [id], onDelete: Cascade)
   jobTitleID         Int
-  jobTitle           JobTitle            @relation(fields: [jobTitleID], references: [id])
+  jobTitle           JobTitle   @relation(fields: [jobTitleID], references: [id], onDelete: Cascade)
   teamID             Int?
-  team               Team?               @relation(fields: [teamID], references: [id])
-  leadingTeam        Team?               @relation("TeamLead")
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  leaveRequests      LeaveRequest[]
+  team               Team?      @relation(fields: [teamID], references: [id], onDelete: Cascade)
+  leadingTeam        Team?      @relation("TeamLead")
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  // Relations
+  leaveRequests  LeaveRequest[] @relation("RequestingEmployee") // Sent requests
+  leaveApprovals LeaveRequest[] @relation("ApprovingEmployee") // Requests to approve
+
   leaveBalances      LeaveBalance[]
   payrolls           Payroll[]
   payslips           Payslip[]
@@ -90,7 +179,7 @@ model JobTitle {
   title       String
   description String?
   depID       Int
-  department  Department   @relation(fields: [depID], references: [id])
+  department  Department   @relation(fields: [depID], references: [id], onDelete: Cascade)
   employees   Employee[]
   jobPostings JobPosting[]
   createdAt   DateTime     @default(now())
@@ -101,10 +190,10 @@ model Team {
   id               Int        @id @default(autoincrement())
   teamName         String
   teamLead         Int?       @unique
-  teamLeadEmployee Employee?  @relation("TeamLead", fields: [teamLead], references: [id])
+  teamLeadEmployee Employee?  @relation("TeamLead", fields: [teamLead], references: [id], onDelete: Cascade)
   depId            Int
   empCount         Int        @default(0)
-  department       Department @relation(fields: [depId], references: [id])
+  department       Department @relation(fields: [depId], references: [id], onDelete: Cascade)
   employees        Employee[]
   goals            Goal[]     @relation("TeamGoals")
   createdAt        DateTime   @default(now())
@@ -118,7 +207,7 @@ model Applicant {
   phone             String?
   resumeURL         String?
   jobPostingId      Int
-  jobPosting        JobPosting  @relation(fields: [jobPostingId], references: [id])
+  jobPosting        JobPosting  @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
   coverLetter       String?
   applicationDate   DateTime    @default(now())
   applicationSource String?
@@ -131,7 +220,7 @@ model Applicant {
 model JobPosting {
   id              Int              @id @default(autoincrement())
   jobTitleId      Int
-  jobTitle        JobTitle         @relation(fields: [jobTitleId], references: [id])
+  jobTitle        JobTitle         @relation(fields: [jobTitleId], references: [id], onDelete: Cascade)
   employmentType  String
   salaryRange     String?
   location        String?
@@ -141,13 +230,13 @@ model JobPosting {
   applicants      Applicant[]
   jobPostingTrack JobPostingTrack?
   createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  updatedAt       DateTime         @default(now())
 }
 
 model JobPostingTrack {
   id              Int        @id @default(autoincrement())
   jobPostingId    Int        @unique
-  jobPosting      JobPosting @relation(fields: [jobPostingId], references: [id])
+  jobPosting      JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
   applicantsCount Int
   interviews      Int
   hiringStatus    String
@@ -176,85 +265,102 @@ model Candidate {
   resume           String?
   interviewRecords String?
   interviewId      Int
-  interview        Interview @relation(fields: [interviewId], references: [id])
+  interview        Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
   status           String
 }
 
 model Attendance {
-  id            Int            @id @default(autoincrement())
-  empId         Int
-  employee      Employee       @relation(fields: [empId], references: [id])
-  clockInTime   DateTime
-  clockOutTime  DateTime?
-  workHours     Float?
-  overtimeHours Float?
-  location      String?
-  clockInMethod ClockInMethod?
+  id             Int            @id @default(autoincrement())
+  empId          Int
+  employee       Employee       @relation(fields: [empId], references: [id], onDelete: Cascade)
+  clockInTime    DateTime
+  clockOutTime   DateTime?
+  workHours      Float?
+  overtimeHours  Float?
+  location       String?
+  clockInMethod  ClockInMethod?
+  breakStartTime DateTime?
+  breakEndTime   DateTime?
 }
 
 model LeaveRequest {
-  id          Int      @id @default(autoincrement())
-  empId       Int
-  employee    Employee @relation(fields: [empId], references: [id])
-  leaveType   String
-  startDate   DateTime
-  endDate     DateTime
-  leaveReason String?
-  status      String
+  id            Int @id @default(autoincrement())
+  empId         Int
+  approvalEmpId Int
+
+  requester Employee @relation("RequestingEmployee", fields: [empId], references: [id], onDelete: Cascade)
+  approver  Employee @relation("ApprovingEmployee", fields: [approvalEmpId], references: [id], onDelete: Cascade)
+
+  leaveType    LeaveType
+  startDate    DateTime
+  endDate      DateTime
+  leaveReason  String?
+  sickLeaveImg String?
+  status       LeaveRequestStatus @default(UNDER_CONSIDERATION)
 }
 
 model LeaveBalance {
-  id          Int      @id @default(autoincrement())
-  empId       Int
-  employee    Employee @relation(fields: [empId], references: [id])
-  entitlement Int
-  leaveTaken  Int      @default(0)
-  accrualRate Float
+  id            Int       @id @default(autoincrement())
+  employeeId    Int
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType     LeaveType
+  entitlement   Float? // Total entitled leave days
+  taken         Float?    @default(0) // Days already taken
+  balance       Float     @default(0) // Remaining leave days
+  accrualRate   Float? // (e.g. 1.25 days/month)
+  carryOverDays Float? // days from the prev year
+  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime  @default(now())
+
+  @@unique([employeeId, leaveType])
 }
 
 model Payroll {
-  id         Int       @id @default(autoincrement())
-  empId      Int
-  employee   Employee  @relation(fields: [empId], references: [id])
-  baseSalary Float
-  deductions Float     @default(0)
-  payPeriod  String
-  bonus      Float     @default(0)
-  payslips   Payslip[]
+  id           Int       @id @default(autoincrement())
+  empId        Int
+  employee     Employee  @relation(fields: [empId], references: [id], onDelete: Cascade)
+  baseSalary   Float
+  deductions   Float     @default(0)
+  payPeriod    PayPeriod @default(MONTHLY)
+  bonus        Float     @default(0)
+  compensation Float     @default(0)
+  netPay       Float     @default(0)
+  payslips     Payslip[]
 }
 
 model Payslip {
   id         Int      @id @default(autoincrement())
   empId      Int
-  employee   Employee @relation(fields: [empId], references: [id])
+  employee   Employee @relation(fields: [empId], references: [id], onDelete: Cascade)
   dateIssued DateTime
   payrollId  Int
-  payroll    Payroll  @relation(fields: [payrollId], references: [id])
+  payroll    Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
 }
 
 model Compensation {
-  id                  Int      @id @default(autoincrement())
-  empId               Int
-  employee            Employee @relation(fields: [empId], references: [id])
-  baseSalary          Float
-  effectiveDate       DateTime
-  compensationHistory String[]
-  benefits            String[]
+  id            Int                 @id @default(autoincrement())
+  empId         Int
+  employee      Employee            @relation(fields: [empId], references: [id], onDelete: Cascade)
+  effectiveDate DateTime
+  effective     Boolean             @default(true)
+  benefit       CompensationBenefit
+  amount        Float
 }
 
 model Bonus {
-  id               Int      @id @default(autoincrement())
+  id               Int             @id @default(autoincrement())
   empId            Int
-  employee         Employee @relation(fields: [empId], references: [id])
+  employee         Employee        @relation(fields: [empId], references: [id], onDelete: Cascade)
   bonusAmount      Float
-  commissionAmount Float    @default(0)
-  incentiveType    String
-  incentivePeriod  String
+  commissionAmount Float           @default(0)
+  incentiveType    IncentiveType
+  incentivePeriod  IncentivePeriod
   incentiveReason  String?
+  createdAt        DateTime        @default(now())
 }
 
 model Goal {
-  id                   Int      @id @default(autoincrement())
+  id                   Int         @id @default(autoincrement())
   title                String
   description          String?
   startDate            DateTime
@@ -263,17 +369,15 @@ model Goal {
   assignedToType       String
   assignedToTeamId     Int?
   assignedToEmployeeId Int?
-
-  goalTracks GoalTrack[]
-
-  team     Team?     @relation("TeamGoals", fields: [assignedToTeamId], references: [id])
-  employee Employee? @relation(fields: [assignedToEmployeeId], references: [id])
+  goalTracks           GoalTrack[]
+  team                 Team?       @relation("TeamGoals", fields: [assignedToTeamId], references: [id], onDelete: Cascade)
+  employee             Employee?   @relation(fields: [assignedToEmployeeId], references: [id], onDelete: Cascade)
 }
 
 model GoalTrack {
   id              Int      @id @default(autoincrement())
   goalId          Int
-  goal            Goal     @relation(fields: [goalId], references: [id])
+  goal            Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
   progressUpdates String[]
   milestones      String[]
   challenges      String[]
@@ -289,8 +393,8 @@ model PerformanceReview {
   comments     String[]
   reviewPeriod String
   reviewStatus String
-  employee     Employee @relation("EmployeeReviews", fields: [employeeId], references: [id])
-  reviewer     Employee @relation("ReviewerReviews", fields: [reviewerId], references: [id])
+  employee     Employee @relation("EmployeeReviews", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer     Employee @relation("ReviewerReviews", fields: [reviewerId], references: [id], onDelete: Cascade)
 }
 
 model Policy {

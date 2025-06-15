@@ -15,13 +15,18 @@ export const createEmployee = async (req, res) => {
     dob,
     hireDate,
     bankDetails,
+    companyID,
+    shift,
     depID,
     jobTitleID,
     teamID,
+    salary,
+    compensation,
+    compensations
   } = req.body;
 
   // Validate required fields
-  if (!name || !email || !password || !hireDate || !depID || !jobTitleID) {
+  if (!name || !email || !password || !hireDate || !depID || !jobTitleID || !salary || !compensation) {
     return res
       .status(400)
       .json({ message: "All fields except teamID are required" });
@@ -49,6 +54,10 @@ export const createEmployee = async (req, res) => {
       .json({ message: "Employee must be at least 18 years old" });
   }
 
+  if (isNaN(parseFloat(salary))) {
+    return res.status(400).json({ message: "Invalid salary format" });
+  }
+
   const lowercaseEmail = email.toLowerCase();
 
   // Check if a file is uploaded
@@ -73,6 +82,19 @@ export const createEmployee = async (req, res) => {
     return res.status(400).json({ message: "Email already exists" });
   }
 
+  // Check if companyID is provided and valid
+  if (!companyID || isNaN(parseInt(companyID))) {
+    return res.status(400).json({ message: "Invalid or missing company ID" });
+  }
+
+  // Check if the company exists
+  const company = await prisma.company.findUnique({
+    where: { id: parseInt(companyID) },
+  });
+  if (!company) {
+    return res.status(400).json({ message: "Company not found" });
+  }
+
   const hashedPassword = await bcrypt.hash(password, 10);
 
   try {
@@ -85,12 +107,89 @@ export const createEmployee = async (req, res) => {
         dob: dob ? new Date(dob) : null,
         hireDate: new Date(hireDate),
         bankDetails,
-        profilePicture: profilePictureUrl || "", // Set empty string if no picture
+        profilePicture: profilePictureUrl || "",
+        companyID: parseInt(companyID),
+        shift: shift,
         depID: parseInt(depID),
         jobTitleID: parseInt(jobTitleID),
         teamID: teamID ? parseInt(teamID) : null,
       },
     });
+
+    // Get the company rules
+    const companyRules = await prisma.companyRules.findUnique({
+      where: { id: parseInt(company.companyRulesId) },
+    });
+
+    if (!companyRules) {
+      return res.status(400).json({ message: "Company rules not found" });
+    }
+
+    // Create 3 leave balances for the employee (leave, sick, annual)
+    await prisma.leaveBalance.createMany({
+      data: [
+        {
+          employeeId: employee.id,
+          leaveType: "LEAVE",
+          entitlement: companyRules.leavesDays,
+          balance: companyRules.leavesDays,
+          accrualRate: companyRules.leavesDays,
+        },
+        {
+          employeeId: employee.id,
+          leaveType: "SICK",
+          balance: companyRules.sickLeaveDays,
+          entitlement: companyRules.sickLeaveDays,
+          accrualRate: companyRules.sickLeaveDays / 12,
+        },
+        {
+          employeeId: employee.id,
+          leaveType: "ANNUAL",
+          entitlement: companyRules.annualLeaveDays,
+          balance: companyRules.annualLeaveDays,
+          accrualRate: companyRules.annualLeaveDays / 12,
+        },
+      ],
+    });
+
+    // Create a payroll
+    await prisma.payroll.create({
+      data: {
+        empId: employee.id,
+        baseSalary: parseFloat(salary),
+      }
+    })
+
+    // Create Compensations if compensation === true
+    if (compensation) {
+      let parsedCompensations = compensations;
+
+      if (typeof compensations === "string") {
+        try {
+          parsedCompensations = JSON.parse(compensations);
+        } catch (err) {
+          return res.status(400).json({ message: "Invalid compensations format" });
+        }
+      }
+
+      if (!Array.isArray(parsedCompensations)) {
+        return res.status(400).json({ message: "Compensations must be an array" });
+      }
+
+      await Promise.all(
+        parsedCompensations.map((comp) =>
+          prisma.compensation.create({
+            data: {
+              empId: employee.id,
+              benefit: comp.benefit,
+              amount: parseFloat(comp.amount),
+              effectiveDate: new Date(comp.effectiveDate),
+            },
+          })
+        )
+      );
+    }
+
     res
       .status(200)
       .json({ message: "Employee created successfully", employee });
@@ -121,7 +220,9 @@ export const signin = [
         return res.status(400).json({ message: "Invalid password" });
       }
       // Generate a JWT token
-      const token = jwt.sign({ id: employee.id }, process.env.JWT_SECRET);
+      const token = jwt.sign({ id: employee.id }, process.env.JWT_SECRET, {
+        expiresIn: '1d',
+      });
       res
         .status(200)
         .json({ message: "Employee signed in successfully", token });
@@ -295,6 +396,7 @@ export const deleteEmployee = [
       }
       res.status(200).json({ message: "Employee deleted successfully" });
     } catch (error) {
+      console.error(error);
       res.status(400).json({ message: "Invalid request" });
     }
   },

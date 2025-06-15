@@ -155,8 +155,8 @@ model JobPostingTrack {
 
 model Interview {
   id               Int         @id @default(autoincrement())
-  candidateId      Int
-  candidate        Applicant   @relation(fields: [candidateId], references: [id])
+  applicantId      Int
+  applicant        Applicant   @relation(fields: [applicantId], references: [id])
   interviewersIds  Int[]
   interviewDate    DateTime
   location         String?
